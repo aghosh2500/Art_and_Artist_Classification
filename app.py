@@ -42,19 +42,27 @@ class CustomSwinModel(nn.Module):
 
 @st.cache_resource
 def load_art_model():
-    return tf.keras.models.load_model(ART_MODEL_PATH)
+    try:
+        return tf.keras.models.load_model(ART_MODEL_PATH)
+    except Exception as e:
+        st.error(f"Failed to load art model: {e}")
+        return None
 
 @st.cache_resource
 def load_artist_model():
-    checkpoint = torch.load(ARTIST_MODEL_PATH, map_location=torch.device('cpu'))
-    class_names = checkpoint['classes']
-    base_model = timm.create_model('swin_tiny_patch4_window7_224', pretrained=False)
-    artist_model = CustomSwinModel(base_model, num_ftrs=base_model.head.in_features, num_classes=len(class_names))
-    artist_model.load_state_dict(checkpoint['model_state_dict'])
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    artist_model = artist_model.to(device)
-    artist_model.eval()
-    return artist_model, class_names, device
+    try:
+        checkpoint = torch.load(ARTIST_MODEL_PATH, map_location=torch.device('cpu'))
+        class_names = checkpoint['classes']
+        base_model = timm.create_model('swin_tiny_patch4_window7_224', pretrained=False)
+        artist_model = CustomSwinModel(base_model, num_ftrs=base_model.head.in_features, num_classes=len(class_names))
+        artist_model.load_state_dict(checkpoint['model_state_dict'])
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        artist_model = artist_model.to(device)
+        artist_model.eval()
+        return artist_model, class_names, device
+    except Exception as e:
+        st.error(f"Failed to load artist model: {e}")
+        return None, None, None
 
 def art_predict_from_pil(pil_img, model):
     img = pil_img.resize((224,224)).convert('RGB')
@@ -96,15 +104,23 @@ def main():
         pil_img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
         st.image(pil_img, caption='Uploaded image', use_column_width=True)
 
-        with st.spinner('Loading art model...'):
-            art_model = load_art_model()
+        art_model = load_art_model()
+        if art_model is None:
+            st.error("Art model could not be loaded. Please ensure the model file is present.")
+            return
 
-        art_label, art_conf = art_predict_from_pil(pil_img, art_model)
+        with st.spinner('Loading art model...'):
+            art_label, art_conf = art_predict_from_pil(pil_img, art_model)
+
         st.write(f'**Art classification:** {art_label}  —  confidence: {art_conf:.3f}')
 
         if art_label == 'ai_art':
+            artist_model, class_names, device = load_artist_model()
+            if artist_model is None:
+                st.error("Artist model could not be loaded. Please ensure the model file is present.")
+                return
+
             with st.spinner('Running artist classifier...'):
-                artist_model, class_names, device = load_artist_model()
                 top2 = artist_predict_topk(pil_img, artist_model, class_names, device, k=2)
             st.write('**Top 2 artist predictions:**')
             for name, conf in top2:
