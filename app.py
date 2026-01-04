@@ -51,7 +51,7 @@ def load_art_model():
 @st.cache_resource
 def load_artist_model():
     try:
-        checkpoint = torch.load(ARTIST_MODEL_PATH, map_location=torch.device('cpu'))
+        checkpoint = torch.load(ARTIST_MODEL_PATH, map_location=torch.device('cpu'), weights_only=False)
         class_names = checkpoint['classes']
         base_model = timm.create_model('swin_tiny_patch4_window7_224', pretrained=False)
         artist_model = CustomSwinModel(base_model, num_ftrs=base_model.head.in_features, num_classes=len(class_names))
