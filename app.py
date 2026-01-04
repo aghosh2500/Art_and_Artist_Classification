@@ -51,6 +51,7 @@ def load_art_model():
 @st.cache_resource
 def load_artist_model():
     try:
+        torch.serialization.add_safe_globals([np._core.multiarray.scalar])
         checkpoint = torch.load(ARTIST_MODEL_PATH, map_location=torch.device('cpu'), weights_only=False)
         class_names = checkpoint['classes']
         base_model = timm.create_model('swin_tiny_patch4_window7_224', pretrained=False)
